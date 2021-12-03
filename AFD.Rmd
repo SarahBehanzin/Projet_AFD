@@ -1,0 +1,38 @@
+---
+title: "AFD"
+output: html_document
+---
+
+## Partie 1
+
+* Importation des données
+
+```{r}
+rm(list = ls())
+library(formattable)
+df  <- read.table('VIN_QUALITE.txt', header = T)
+head(df)
+```
+* On supprimme d'abord la colonne QUALITY pour pourvoir calculer les moyennes
+
+```{r}
+quality <- "Quality"
+df_change <- df[, ! names(df) %in% quality, drop = F]
+head(df_change)
+```
+
+* Moyenne des variables
+
+````{r}
+colMeans(df_change)
+````
+* Moyennes de variables par classe
+
+````{r}
+aggregate(df[, 1:4], list(df$Quality), mean)
+````
+* Matrice des Variances - Covariances par classes
+
+````{r}
+
+````
