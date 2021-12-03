@@ -5,7 +5,7 @@ output: html_document
 
 ## Partie 1
 
-*Librairies utilisées
+* Librairies utilisées
 
 ````{r}
 library(formattable)
@@ -38,14 +38,15 @@ colMeans(df_change)
 aggregate(df[, 1:4], list(df$Quality), mean)
 ````
 * Matrice des Variances - Covariances par classes
-  *bad
+
+  * bad
 ````{r}
 df_bad <- df%>%filter(Quality=="bad")
 df_bad <- df_bad[, ! names(df_bad) %in% quality, drop = F]
 cov(df_bad)
 ````
 
-*medim
+  * medium
 ```{r}
 df_med <- df%>%filter(Quality=="medium")
 df_med <- df_med[, ! names(df_med) %in% quality, drop = F]
