@@ -36,5 +36,3 @@ aggregate(df[, 1:4], list(df$Quality), mean)
 ````{r}
 
 ````
-
-test
