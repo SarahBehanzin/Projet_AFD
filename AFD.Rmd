@@ -41,6 +41,7 @@ aggregate(df[, 1:4], list(df$Quality), mean)
 
   * bad
 ````{r}
+N=length(df_bad)
 df_bad <- df%>%filter(Quality=="bad")
 df_bad <- df_bad[, ! names(df_bad) %in% quality, drop = F]
 cov(df_bad)
