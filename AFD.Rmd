@@ -17,39 +17,77 @@ library(rstatix)
 ```{r}
 rm(list = ls())
 df  <- read.table('VIN_QUALITE.txt', header = T)
+df$Quality <- as.factor(df$Quality)
 head(df)
 ```
 * On supprimme d'abord la colonne QUALITY pour pourvoir calculer les moyennes
 
 ```{r}
-quality <- "Quality"
-df_change <- df[, ! names(df) %in% quality, drop = F]
+df_change <- df[, ! names(df) %in% "Quality", drop = F]
 head(df_change)
 ```
 
 * Moyenne des variables
 
 ````{r}
-colMeans(df_change)
+MoyVar <- colMeans(df_change)
+head(MoyVar)
 ````
 * Moyennes de variables par classe
 
 ````{r}
-aggregate(df[, 1:4], list(df$Quality), mean)
+MoyVarClass <- aggregate(df[, 1:4], list(df$Quality), mean)
+head(MoyVarClass)
 ````
 * Matrice des Variances - Covariances par classes
 
   * bad
 ````{r}
-N=length(df_bad)
+#N=length(df_bad)
 df_bad <- df%>%filter(Quality=="bad")
-df_bad <- df_bad[, ! names(df_bad) %in% quality, drop = F]
-cov(df_bad)
+df_bad <- df_bad[, ! names(df_bad) %in% "Quality", drop = F]
+covB <- cov(df_bad)
+covB
 ````
+* Matrice des Variances - Covariances par classes
 
   * medium
 ```{r}
 df_med <- df%>%filter(Quality=="medium")
-df_med <- df_med[, ! names(df_med) %in% quality, drop = F]
-cov(df_med)
+df_med <- df_med[, ! names(df_med) %in% "Quality", drop = F]
+covM <- cov(df_med)
+covM
+````
+* Matrice des Variances - Covariances par classes
+
+  * good
+
+```{r}
+df_good <- df%>%filter(Quality=="good")
+df_good <- df_good[, ! names(df_good) %in% "Quality", drop = F]
+covG <- cov(df_good)
+covG
+````
+
+Pour la réalisation de notre future fonction "générique" pouvant accepter différents dataframe, on utilise cette méthode pour créer une liste comprenant les variables voulues:
+
+````{r}
+L1 <- lapply(levels(df$Quality),function(x){
+  return(list(
+    'data' = subset(df,Quality==x),
+    'MoyVar' = colMeans(df[, ! names(df) %in% "Quality", drop = F]),
+    'MoyVarClass' = aggregate(df[, 1:ncol(df)-1], list(df$Quality), mean),
+    'CovClass' = cov(subset(df,Quality ==x)[, ! names(df)%in% "Quality", drop = F])
+    )
+    )
+  }
+  )
+k <- length(levels(df$Quality))
+L <- list()
+
+for (i in 1:k){
+  nom <- paste0('G', i)
+  L[nom] <- setNames(L1,nom)
+}
+L
 ````

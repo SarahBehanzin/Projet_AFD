@@ -171,11 +171,21 @@ pre code {
 <div id="partie-1" class="section level2">
 <h2>Partie 1</h2>
 <ul>
+<li>Librairies utilisées</li>
+</ul>
+<pre class="r"><code>library(formattable)
+library(rstatix)</code></pre>
+<pre><code>## 
+## Attachement du package : &#39;rstatix&#39;</code></pre>
+<pre><code>## L&#39;objet suivant est masqué depuis &#39;package:stats&#39;:
+## 
+##     filter</code></pre>
+<ul>
 <li>Importation des données</li>
 </ul>
 <pre class="r"><code>rm(list = ls())
-library(formattable)
 df  &lt;- read.table(&#39;VIN_QUALITE.txt&#39;, header = T)
+df$Quality &lt;- as.factor(df$Quality)
 head(df)</code></pre>
 <pre><code>##     TP  Sun Heat Rain Quality
 ## 1 3064 1201   10  361  medium
@@ -187,8 +197,7 @@ head(df)</code></pre>
 <ul>
 <li>On supprimme d’abord la colonne QUALITY pour pourvoir calculer les moyennes</li>
 </ul>
-<pre class="r"><code>quality &lt;- &quot;Quality&quot;
-df_change &lt;- df[, ! names(df) %in% quality, drop = F]
+<pre class="r"><code>df_change &lt;- df[, ! names(df) %in% &quot;Quality&quot;, drop = F]
 head(df_change)</code></pre>
 <pre><code>##     TP  Sun Heat Rain
 ## 1 3064 1201   10  361
@@ -200,20 +209,192 @@ head(df_change)</code></pre>
 <ul>
 <li>Moyenne des variables</li>
 </ul>
-<pre class="r"><code>colMeans(df_change)</code></pre>
+<pre class="r"><code>MoyVar &lt;- colMeans(df_change)
+head(MoyVar)</code></pre>
 <pre><code>##         TP        Sun       Heat       Rain 
 ## 3157.88235 1247.32353   18.82353  360.44118</code></pre>
 <ul>
 <li>Moyennes de variables par classe</li>
 </ul>
-<pre class="r"><code>aggregate(df[, 1:4], list(df$Quality), mean)</code></pre>
+<pre class="r"><code>MoyVarClass &lt;- aggregate(df[, 1:4], list(df$Quality), mean)
+head(MoyVarClass)</code></pre>
 <pre><code>##   Group.1       TP      Sun     Heat     Rain
 ## 1     bad 3037.333 1126.417 12.08333 430.3333
 ## 2    good 3306.364 1363.636 28.54545 305.0000
 ## 3  medium 3140.909 1262.909 16.45455 339.6364</code></pre>
 <ul>
-<li>Matrice des Variances - Covariances par classes</li>
+<li><p>Matrice des Variances - Covariances par classes</p>
+<ul>
+<li>bad</li>
+</ul></li>
 </ul>
+<pre class="r"><code>#N=length(df_bad)
+df_bad &lt;- df%&gt;%filter(Quality==&quot;bad&quot;)
+df_bad &lt;- df_bad[, ! names(df_bad) %in% &quot;Quality&quot;, drop = F]
+covB &lt;- cov(df_bad)
+covB</code></pre>
+<pre><code>##              TP         Sun      Heat        Rain
+## TP    4807.8788 -1003.60606 233.51515   227.06061
+## Sun  -1003.6061  7813.35606 157.41667   -59.78788
+## Heat   233.5152   157.41667  39.71970   -25.57576
+## Rain   227.0606   -59.78788 -25.57576 10992.60606</code></pre>
+<ul>
+<li><p>Matrice des Variances - Covariances par classes</p>
+<ul>
+<li>medium</li>
+</ul></li>
+</ul>
+<pre class="r"><code>df_med &lt;- df%&gt;%filter(Quality==&quot;medium&quot;)
+df_med &lt;- df_med[, ! names(df_med) %in% &quot;Quality&quot;, drop = F]
+covM &lt;- cov(df_med)
+covM</code></pre>
+<pre><code>##              TP       Sun      Heat      Rain
+## TP   10009.0909 3541.5909 587.94545 3793.0636
+## Sun   3541.5909 5175.4909 188.24545  912.0636
+## Heat   587.9455  188.2455  45.27273  226.2818
+## Rain  3793.0636  912.0636 226.28182 3023.4545</code></pre>
+<ul>
+<li><p>Matrice des Variances - Covariances par classes</p>
+<ul>
+<li>good</li>
+</ul></li>
+</ul>
+<pre class="r"><code>df_good &lt;- df%&gt;%filter(Quality==&quot;good&quot;)
+df_good &lt;- df_good[, ! names(df_good) %in% &quot;Quality&quot;, drop = F]
+covG &lt;- cov(df_good)
+covG</code></pre>
+<pre><code>##              TP        Sun       Heat    Rain
+## TP    8474.4545  3390.8455  585.28182 -2709.1
+## Sun   3390.8455  6449.0545  163.11818 -1336.1
+## Heat   585.2818   163.1182   77.47273  -306.1
+## Rain -2709.1000 -1336.1000 -306.10000  2734.6</code></pre>
+<p>Pour la réalisation de notre future fonction “générique” pouvant accepter différents dataframe, on utilise cette méthode pour créer une liste comprenant les variables voulues:</p>
+<pre class="r"><code>L1 &lt;- lapply(levels(df$Quality),function(x){
+  return(list(
+    &#39;data&#39; = subset(df,Quality==x),
+    &#39;MoyVar&#39; = colMeans(df[, ! names(df) %in% &quot;Quality&quot;, drop = F]),
+    &#39;MoyVarClass&#39; = aggregate(df[, 1:ncol(df)-1], list(df$Quality), mean),
+    &#39;CovClass&#39; = cov(subset(df,Quality ==x)[, ! names(df)%in% &quot;Quality&quot;, drop = F])
+    )
+    )
+  }
+  )
+k &lt;- length(levels(df$Quality))
+L &lt;- list()
+
+for (i in 1:k){
+  nom &lt;- paste0(&#39;G&#39;, i)
+  L[nom] &lt;- setNames(L1,nom)
+}</code></pre>
+<pre><code>## Warning in L[nom] &lt;- setNames(L1, nom): le nombre d&#39;objets à remplacer n&#39;est pas
+## multiple de la taille du remplacement
+
+## Warning in L[nom] &lt;- setNames(L1, nom): le nombre d&#39;objets à remplacer n&#39;est pas
+## multiple de la taille du remplacement
+
+## Warning in L[nom] &lt;- setNames(L1, nom): le nombre d&#39;objets à remplacer n&#39;est pas
+## multiple de la taille du remplacement</code></pre>
+<pre class="r"><code>L</code></pre>
+<pre><code>## $G1
+## $G1$data
+##      TP  Sun Heat Rain Quality
+## 2  3000 1053   11  338     bad
+## 4  3085  970    4  467     bad
+## 7  3080  966   13  417     bad
+## 8  2974 1189   12  488     bad
+## 9  3038 1103   14  677     bad
+## 12 3182 1171   28  326     bad
+## 13 2998 1102    9  349     bad
+## 18 3009 1210   15  536     bad
+## 28 3052 1186   14  443     bad
+## 31 2904 1164    6  311     bad
+## 33 3083 1195    5  441     bad
+## 34 3043 1208   14  371     bad
+## 
+## $G1$MoyVar
+##         TP        Sun       Heat       Rain 
+## 3157.88235 1247.32353   18.82353  360.44118 
+## 
+## $G1$MoyVarClass
+##   Group.1       TP      Sun     Heat     Rain
+## 1     bad 3037.333 1126.417 12.08333 430.3333
+## 2    good 3306.364 1363.636 28.54545 305.0000
+## 3  medium 3140.909 1262.909 16.45455 339.6364
+## 
+## $G1$CovClass
+##              TP         Sun      Heat        Rain
+## TP    4807.8788 -1003.60606 233.51515   227.06061
+## Sun  -1003.6061  7813.35606 157.41667   -59.78788
+## Heat   233.5152   157.41667  39.71970   -25.57576
+## Rain   227.0606   -59.78788 -25.57576 10992.60606
+## 
+## 
+## $G2
+## $G2$data
+##      TP  Sun Heat Rain Quality
+## 2  3000 1053   11  338     bad
+## 4  3085  970    4  467     bad
+## 7  3080  966   13  417     bad
+## 8  2974 1189   12  488     bad
+## 9  3038 1103   14  677     bad
+## 12 3182 1171   28  326     bad
+## 13 2998 1102    9  349     bad
+## 18 3009 1210   15  536     bad
+## 28 3052 1186   14  443     bad
+## 31 2904 1164    6  311     bad
+## 33 3083 1195    5  441     bad
+## 34 3043 1208   14  371     bad
+## 
+## $G2$MoyVar
+##         TP        Sun       Heat       Rain 
+## 3157.88235 1247.32353   18.82353  360.44118 
+## 
+## $G2$MoyVarClass
+##   Group.1       TP      Sun     Heat     Rain
+## 1     bad 3037.333 1126.417 12.08333 430.3333
+## 2    good 3306.364 1363.636 28.54545 305.0000
+## 3  medium 3140.909 1262.909 16.45455 339.6364
+## 
+## $G2$CovClass
+##              TP         Sun      Heat        Rain
+## TP    4807.8788 -1003.60606 233.51515   227.06061
+## Sun  -1003.6061  7813.35606 157.41667   -59.78788
+## Heat   233.5152   157.41667  39.71970   -25.57576
+## Rain   227.0606   -59.78788 -25.57576 10992.60606
+## 
+## 
+## $G3
+## $G3$data
+##      TP  Sun Heat Rain Quality
+## 2  3000 1053   11  338     bad
+## 4  3085  970    4  467     bad
+## 7  3080  966   13  417     bad
+## 8  2974 1189   12  488     bad
+## 9  3038 1103   14  677     bad
+## 12 3182 1171   28  326     bad
+## 13 2998 1102    9  349     bad
+## 18 3009 1210   15  536     bad
+## 28 3052 1186   14  443     bad
+## 31 2904 1164    6  311     bad
+## 33 3083 1195    5  441     bad
+## 34 3043 1208   14  371     bad
+## 
+## $G3$MoyVar
+##         TP        Sun       Heat       Rain 
+## 3157.88235 1247.32353   18.82353  360.44118 
+## 
+## $G3$MoyVarClass
+##   Group.1       TP      Sun     Heat     Rain
+## 1     bad 3037.333 1126.417 12.08333 430.3333
+## 2    good 3306.364 1363.636 28.54545 305.0000
+## 3  medium 3140.909 1262.909 16.45455 339.6364
+## 
+## $G3$CovClass
+##              TP         Sun      Heat        Rain
+## TP    4807.8788 -1003.60606 233.51515   227.06061
+## Sun  -1003.6061  7813.35606 157.41667   -59.78788
+## Heat   233.5152   157.41667  39.71970   -25.57576
+## Rain   227.0606   -59.78788 -25.57576 10992.60606</code></pre>
 </div>
 
 
