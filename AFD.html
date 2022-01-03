@@ -186,6 +186,7 @@ library(rstatix)</code></pre>
 <pre class="r"><code>rm(list = ls())
 df  &lt;- read.table(&#39;VIN_QUALITE.txt&#39;, header = T)
 df$Quality &lt;- as.factor(df$Quality)
+N &lt;- nrow(df)
 head(df)</code></pre>
 <pre><code>##     TP  Sun Heat Rain Quality
 ## 1 3064 1201   10  361  medium
@@ -217,7 +218,7 @@ head(MoyVar)</code></pre>
 <li>Moyennes de variables par classe</li>
 </ul>
 <pre class="r"><code>MoyVarClass &lt;- aggregate(df[, 1:4], list(df$Quality), mean)
-head(MoyVarClass)</code></pre>
+MoyVarClass</code></pre>
 <pre><code>##   Group.1       TP      Sun     Heat     Rain
 ## 1     bad 3037.333 1126.417 12.08333 430.3333
 ## 2    good 3306.364 1363.636 28.54545 305.0000
@@ -261,140 +262,111 @@ covM</code></pre>
 </ul>
 <pre class="r"><code>df_good &lt;- df%&gt;%filter(Quality==&quot;good&quot;)
 df_good &lt;- df_good[, ! names(df_good) %in% &quot;Quality&quot;, drop = F]
-covG &lt;- cov(df_good)
+covG &lt;- cov(df_good)*((N-1)/N)
 covG</code></pre>
-<pre><code>##              TP        Sun       Heat    Rain
-## TP    8474.4545  3390.8455  585.28182 -2709.1
-## Sun   3390.8455  6449.0545  163.11818 -1336.1
-## Heat   585.2818   163.1182   77.47273  -306.1
-## Rain -2709.1000 -1336.1000 -306.10000  2734.6</code></pre>
+<pre><code>##              TP        Sun       Heat       Rain
+## TP    8225.2059  3291.1147  568.06765 -2629.4206
+## Sun   3291.1147  6259.3765  158.32059 -1296.8029
+## Heat   568.0676   158.3206   75.19412  -297.0971
+## Rain -2629.4206 -1296.8029 -297.09706  2654.1706</code></pre>
 <p>Pour la réalisation de notre future fonction “générique” pouvant accepter différents dataframe, on utilise cette méthode pour créer une liste comprenant les variables voulues:</p>
 <pre class="r"><code>L1 &lt;- lapply(levels(df$Quality),function(x){
   return(list(
-    &#39;data&#39; = subset(df,Quality==x),
-    &#39;MoyVar&#39; = colMeans(df[, ! names(df) %in% &quot;Quality&quot;, drop = F]),
-    &#39;MoyVarClass&#39; = aggregate(df[, 1:ncol(df)-1], list(df$Quality), mean),
-    &#39;CovClass&#39; = cov(subset(df,Quality ==x)[, ! names(df)%in% &quot;Quality&quot;, drop = F])
-    )
-    )
-  }
+    &#39;CovClass&#39; = cov(subset(df,Quality ==x)[, ! names(df)%in% &quot;Quality&quot;, drop = F])*((N-1)/N),
+    &#39;nrow&#39; = nrow(subset(df,Quality ==x))
   )
+  )
+}
+)
 k &lt;- length(levels(df$Quality))
 L &lt;- list()
 
 for (i in 1:k){
   nom &lt;- paste0(&#39;G&#39;, i)
-  L[nom] &lt;- setNames(L1,nom)
-}</code></pre>
-<pre><code>## Warning in L[nom] &lt;- setNames(L1, nom): le nombre d&#39;objets à remplacer n&#39;est pas
-## multiple de la taille du remplacement
-
-## Warning in L[nom] &lt;- setNames(L1, nom): le nombre d&#39;objets à remplacer n&#39;est pas
-## multiple de la taille du remplacement
-
-## Warning in L[nom] &lt;- setNames(L1, nom): le nombre d&#39;objets à remplacer n&#39;est pas
-## multiple de la taille du remplacement</code></pre>
-<pre class="r"><code>L</code></pre>
+  L[nom] &lt;- setNames(L1[i],nom)
+}
+L</code></pre>
 <pre><code>## $G1
-## $G1$data
-##      TP  Sun Heat Rain Quality
-## 2  3000 1053   11  338     bad
-## 4  3085  970    4  467     bad
-## 7  3080  966   13  417     bad
-## 8  2974 1189   12  488     bad
-## 9  3038 1103   14  677     bad
-## 12 3182 1171   28  326     bad
-## 13 2998 1102    9  349     bad
-## 18 3009 1210   15  536     bad
-## 28 3052 1186   14  443     bad
-## 31 2904 1164    6  311     bad
-## 33 3083 1195    5  441     bad
-## 34 3043 1208   14  371     bad
-## 
-## $G1$MoyVar
-##         TP        Sun       Heat       Rain 
-## 3157.88235 1247.32353   18.82353  360.44118 
-## 
-## $G1$MoyVarClass
-##   Group.1       TP      Sun     Heat     Rain
-## 1     bad 3037.333 1126.417 12.08333 430.3333
-## 2    good 3306.364 1363.636 28.54545 305.0000
-## 3  medium 3140.909 1262.909 16.45455 339.6364
-## 
 ## $G1$CovClass
-##              TP         Sun      Heat        Rain
-## TP    4807.8788 -1003.60606 233.51515   227.06061
-## Sun  -1003.6061  7813.35606 157.41667   -59.78788
-## Heat   233.5152   157.41667  39.71970   -25.57576
-## Rain   227.0606   -59.78788 -25.57576 10992.60606
+##             TP        Sun      Heat        Rain
+## TP   4666.4706 -974.08824 226.64706   220.38235
+## Sun  -974.0882 7583.55147 152.78676   -58.02941
+## Heat  226.6471  152.78676  38.55147   -24.82353
+## Rain  220.3824  -58.02941 -24.82353 10669.29412
+## 
+## $G1$nrow
+## [1] 12
 ## 
 ## 
 ## $G2
-## $G2$data
-##      TP  Sun Heat Rain Quality
-## 2  3000 1053   11  338     bad
-## 4  3085  970    4  467     bad
-## 7  3080  966   13  417     bad
-## 8  2974 1189   12  488     bad
-## 9  3038 1103   14  677     bad
-## 12 3182 1171   28  326     bad
-## 13 2998 1102    9  349     bad
-## 18 3009 1210   15  536     bad
-## 28 3052 1186   14  443     bad
-## 31 2904 1164    6  311     bad
-## 33 3083 1195    5  441     bad
-## 34 3043 1208   14  371     bad
-## 
-## $G2$MoyVar
-##         TP        Sun       Heat       Rain 
-## 3157.88235 1247.32353   18.82353  360.44118 
-## 
-## $G2$MoyVarClass
-##   Group.1       TP      Sun     Heat     Rain
-## 1     bad 3037.333 1126.417 12.08333 430.3333
-## 2    good 3306.364 1363.636 28.54545 305.0000
-## 3  medium 3140.909 1262.909 16.45455 339.6364
-## 
 ## $G2$CovClass
-##              TP         Sun      Heat        Rain
-## TP    4807.8788 -1003.60606 233.51515   227.06061
-## Sun  -1003.6061  7813.35606 157.41667   -59.78788
-## Heat   233.5152   157.41667  39.71970   -25.57576
-## Rain   227.0606   -59.78788 -25.57576 10992.60606
+##              TP        Sun       Heat       Rain
+## TP    8225.2059  3291.1147  568.06765 -2629.4206
+## Sun   3291.1147  6259.3765  158.32059 -1296.8029
+## Heat   568.0676   158.3206   75.19412  -297.0971
+## Rain -2629.4206 -1296.8029 -297.09706  2654.1706
+## 
+## $G2$nrow
+## [1] 11
 ## 
 ## 
 ## $G3
-## $G3$data
-##      TP  Sun Heat Rain Quality
-## 2  3000 1053   11  338     bad
-## 4  3085  970    4  467     bad
-## 7  3080  966   13  417     bad
-## 8  2974 1189   12  488     bad
-## 9  3038 1103   14  677     bad
-## 12 3182 1171   28  326     bad
-## 13 2998 1102    9  349     bad
-## 18 3009 1210   15  536     bad
-## 28 3052 1186   14  443     bad
-## 31 2904 1164    6  311     bad
-## 33 3083 1195    5  441     bad
-## 34 3043 1208   14  371     bad
-## 
-## $G3$MoyVar
-##         TP        Sun       Heat       Rain 
-## 3157.88235 1247.32353   18.82353  360.44118 
-## 
-## $G3$MoyVarClass
-##   Group.1       TP      Sun     Heat     Rain
-## 1     bad 3037.333 1126.417 12.08333 430.3333
-## 2    good 3306.364 1363.636 28.54545 305.0000
-## 3  medium 3140.909 1262.909 16.45455 339.6364
-## 
 ## $G3$CovClass
-##              TP         Sun      Heat        Rain
-## TP    4807.8788 -1003.60606 233.51515   227.06061
-## Sun  -1003.6061  7813.35606 157.41667   -59.78788
-## Heat   233.5152   157.41667  39.71970   -25.57576
-## Rain   227.0606   -59.78788 -25.57576 10992.60606</code></pre>
+##             TP       Sun      Heat      Rain
+## TP   9714.7059 3437.4265 570.65294 3681.5029
+## Sun  3437.4265 5023.2706 182.70882  885.2382
+## Heat  570.6529  182.7088  43.94118  219.6265
+## Rain 3681.5029  885.2382 219.62647 2934.5294
+## 
+## $G3$nrow
+## [1] 11</code></pre>
+<ul>
+<li><p>Calcul des inerties :</p>
+<ul>
+<li>Calcul de l’inertie Intra (W)</li>
+</ul></li>
+</ul>
+<pre class="r"><code># W &lt;- list()
+# for (i in 1:length(L)){
+#   W &lt;- (1/N)*sum((L[[i]]$nrow*(L[[i]]$CovClass)))
+# }
+# W
+
+W &lt;- (1/N)*((L[[1]]$nrow*(L[[1]]$CovClass))+(L[[2]]$nrow*(L[[2]]$CovClass))+(L[[3]]$nrow*(L[[3]]$CovClass)))
+W</code></pre>
+<pre><code>##             TP       Sun      Heat       Rain
+## TP   7451.0787 1833.0851 448.40268  418.16159
+## Sun  1833.0851 6326.8157 164.25779 -153.63426
+## Heat  448.4027  164.2578  52.15017  -33.82526
+## Rain  418.1616 -153.6343 -33.82526 5573.74204</code></pre>
+<ul>
+<li><p>Calcul des inerties :</p>
+<ul>
+<li>Calcul de l’inertie Inter (B)</li>
+</ul></li>
+</ul>
+<pre class="r"><code>B &lt;- (1/N)*(L[[1]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar))+L[[2]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar))+L[[3]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar)))
+B</code></pre>
+<pre><code>##          [,1]     [,2]     [,3]
+## [1,]  1268769 -1854130  -326255
+## [2,] -1854130  7651017  7437208
+## [3,]  -326255  7437208 19616663</code></pre>
+<ul>
+<li><p>Calcul des inerties :</p>
+<ul>
+<li>Calcul de l’inertie Totale (I)</li>
+</ul></li>
+</ul>
+<pre class="r"><code># I &lt;- W+B
+# I</code></pre>
+<ul>
+<li><p>Diagonalisation</p>
+<ul>
+<li></li>
+</ul></li>
+</ul>
+<pre class="r"><code># B &lt;- 
+# B</code></pre>
 </div>
 
 
