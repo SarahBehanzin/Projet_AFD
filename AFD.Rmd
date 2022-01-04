@@ -32,13 +32,13 @@ head(df_change)
 
 ````{r}
 MoyVar <- colMeans(df_change)
-head(MoyVar)
+MoyVar
 ````
 * Moyennes de variables par classe
 
 ````{r}
 MoyVarClass <- aggregate(df[, 1:4], list(df$Quality), mean)
-MoyVarClass
+format_table(MoyVarClass)
 ````
 * Matrice des Variances - Covariances par classes
 
@@ -47,7 +47,7 @@ MoyVarClass
 #N=length(df_bad)
 df_bad <- df%>%filter(Quality=="bad")
 df_bad <- df_bad[, ! names(df_bad) %in% "Quality", drop = F]
-covB <- cov(df_bad)
+covB <- cov(df_bad)*((N-1)/N)
 covB
 ````
 * Matrice des Variances - Covariances par classes
@@ -56,7 +56,7 @@ covB
 ```{r}
 df_med <- df%>%filter(Quality=="medium")
 df_med <- df_med[, ! names(df_med) %in% "Quality", drop = F]
-covM <- cov(df_med)
+covM <- cov(df_med)*((N-1)/N)
 covM
 ````
 * Matrice des Variances - Covariances par classes

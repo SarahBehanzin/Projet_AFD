@@ -211,18 +211,88 @@ head(df_change)</code></pre>
 <li>Moyenne des variables</li>
 </ul>
 <pre class="r"><code>MoyVar &lt;- colMeans(df_change)
-head(MoyVar)</code></pre>
+MoyVar</code></pre>
 <pre><code>##         TP        Sun       Heat       Rain 
 ## 3157.88235 1247.32353   18.82353  360.44118</code></pre>
 <ul>
 <li>Moyennes de variables par classe</li>
 </ul>
 <pre class="r"><code>MoyVarClass &lt;- aggregate(df[, 1:4], list(df$Quality), mean)
-MoyVarClass</code></pre>
-<pre><code>##   Group.1       TP      Sun     Heat     Rain
-## 1     bad 3037.333 1126.417 12.08333 430.3333
-## 2    good 3306.364 1363.636 28.54545 305.0000
-## 3  medium 3140.909 1262.909 16.45455 339.6364</code></pre>
+format_table(MoyVarClass)</code></pre>
+<table class="table table-condensed">
+<thead>
+<tr>
+<th style="text-align:right;">
+Group.1
+</th>
+<th style="text-align:right;">
+TP
+</th>
+<th style="text-align:right;">
+Sun
+</th>
+<th style="text-align:right;">
+Heat
+</th>
+<th style="text-align:right;">
+Rain
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+bad
+</td>
+<td style="text-align:right;">
+3037.333
+</td>
+<td style="text-align:right;">
+1126.417
+</td>
+<td style="text-align:right;">
+12.08333
+</td>
+<td style="text-align:right;">
+430.3333
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+good
+</td>
+<td style="text-align:right;">
+3306.364
+</td>
+<td style="text-align:right;">
+1363.636
+</td>
+<td style="text-align:right;">
+28.54545
+</td>
+<td style="text-align:right;">
+305.0000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+medium
+</td>
+<td style="text-align:right;">
+3140.909
+</td>
+<td style="text-align:right;">
+1262.909
+</td>
+<td style="text-align:right;">
+16.45455
+</td>
+<td style="text-align:right;">
+339.6364
+</td>
+</tr>
+</tbody>
+</table>
 <ul>
 <li><p>Matrice des Variances - Covariances par classes</p>
 <ul>
@@ -345,7 +415,7 @@ W</code></pre>
 <li>Calcul de l’inertie Inter (B)</li>
 </ul></li>
 </ul>
-<pre class="r"><code>B &lt;- (1/N)*(L[[1]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar))+L[[2]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar))+L[[3]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar)))
+<pre class="r"><code>B &lt;- (1/N)*((L[[1]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar)))+(L[[2]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar)))+(L[[3]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar))))
 B</code></pre>
 <pre><code>##          [,1]     [,2]     [,3]
 ## [1,]  1268769 -1854130  -326255
