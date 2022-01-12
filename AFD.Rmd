@@ -112,6 +112,7 @@ U <- Re(dBw$vectors)[,1:2]
 normes <- sqrt(diag(t(U)%*%W%*%U))
 
 VecP <- sweep(U,2,normes,"/")
+# fonction sweep permets d'appliquer une procédure à notre m, elle permet aussi de centrer et réduire les colonnes de la matrice 
 VecPf <- VecP
 rownames(VecPf)=c("TP","Sun","Heat","Rain")
 colnames(VecPf)=c("Axe_1","Axe_2")
@@ -140,4 +141,9 @@ rownames(res)= c("u1","u2")
 
 ````{r}
 library(ggplot2)
+
+````
+
+````{r}
+
 ````
