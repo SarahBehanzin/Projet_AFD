@@ -17,39 +17,112 @@ library(rstatix)
 ```{r}
 rm(list = ls())
 df  <- read.table('VIN_QUALITE.txt', header = T)
+df$Quality <- as.factor(df$Quality)
+N <- nrow(df)
 head(df)
 ```
 * On supprimme d'abord la colonne QUALITY pour pourvoir calculer les moyennes
 
 ```{r}
-quality <- "Quality"
-df_change <- df[, ! names(df) %in% quality, drop = F]
+df_change <- df[, ! names(df) %in% "Quality", drop = F]
 head(df_change)
 ```
 
 * Moyenne des variables
 
 ````{r}
-colMeans(df_change)
+MoyVar <- colMeans(df_change)
+head(MoyVar)
 ````
 * Moyennes de variables par classe
 
 ````{r}
-aggregate(df[, 1:4], list(df$Quality), mean)
+MoyVarClass <- aggregate(df[, 1:4], list(df$Quality), mean)
+MoyVarClass
 ````
 * Matrice des Variances - Covariances par classes
 
   * bad
 ````{r}
-N=length(df_bad)
+#N=length(df_bad)
 df_bad <- df%>%filter(Quality=="bad")
-df_bad <- df_bad[, ! names(df_bad) %in% quality, drop = F]
-cov(df_bad)
+df_bad <- df_bad[, ! names(df_bad) %in% "Quality", drop = F]
+covB <- cov(df_bad)
+covB
 ````
+* Matrice des Variances - Covariances par classes
 
   * medium
 ```{r}
 df_med <- df%>%filter(Quality=="medium")
-df_med <- df_med[, ! names(df_med) %in% quality, drop = F]
-cov(df_med)
+df_med <- df_med[, ! names(df_med) %in% "Quality", drop = F]
+covM <- cov(df_med)
+covM
+````
+* Matrice des Variances - Covariances par classes
+
+  * good
+
+```{r}
+df_good <- df%>%filter(Quality=="good")
+df_good <- df_good[, ! names(df_good) %in% "Quality", drop = F]
+covG <- cov(df_good)*((N-1)/N)
+covG
+````
+
+Pour la réalisation de notre future fonction "générique" pouvant accepter différents dataframe, on utilise cette méthode pour créer une liste comprenant les variables voulues:
+
+````{r}
+L1 <- lapply(levels(df$Quality),function(x){
+  return(list(
+    'CovClass' = cov(subset(df,Quality ==x)[, ! names(df)%in% "Quality", drop = F])*((N-1)/N),
+    'nrow' = nrow(subset(df,Quality ==x))
+  )
+  )
+}
+)
+k <- length(levels(df$Quality))
+L <- list()
+
+for (i in 1:k){
+  nom <- paste0('G', i)
+  L[nom] <- setNames(L1[i],nom)
+}
+L
+````
+* Calcul des inerties : 
+
+  * Calcul de l'inertie Intra (W) 
+````{r}
+
+# W <- list()
+# for (i in 1:length(L)){
+#   W <- (1/N)*sum((L[[i]]$nrow*(L[[i]]$CovClass)))
+# }
+# W
+
+W <- (1/N)*((L[[1]]$nrow*(L[[1]]$CovClass))+(L[[2]]$nrow*(L[[2]]$CovClass))+(L[[3]]$nrow*(L[[3]]$CovClass)))
+W
+````
+* Calcul des inerties : 
+
+  * Calcul de l'inertie Inter (B) 
+````{r}
+B <- (1/N)*((L[[1]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar)))+(L[[2]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar)))+(L[[3]]$nrow*(as.matrix(MoyVarClass[,-1]-MoyVar))%*%t(as.matrix(MoyVarClass[,-1]-MoyVar))))
+B
+
+````
+* Calcul des inerties : 
+
+  * Calcul de l'inertie Totale (I)
+````{r}
+# I <- W+B
+# I
+````
+* Diagonalisation
+
+  * 
+````{r}
+# B <- 
+# B
 ````
