@@ -211,18 +211,88 @@ head(df_change)</code></pre>
 <li>Moyenne des variables</li>
 </ul>
 <pre class="r"><code>MoyVar &lt;- colMeans(df_change)
-head(MoyVar)</code></pre>
+MoyVar</code></pre>
 <pre><code>##         TP        Sun       Heat       Rain 
 ## 3157.88235 1247.32353   18.82353  360.44118</code></pre>
 <ul>
 <li>Moyennes de variables par classe</li>
 </ul>
 <pre class="r"><code>MoyVarClass &lt;- aggregate(df[, 1:4], list(df$Quality), mean)
-MoyVarClass</code></pre>
-<pre><code>##   Group.1       TP      Sun     Heat     Rain
-## 1     bad 3037.333 1126.417 12.08333 430.3333
-## 2    good 3306.364 1363.636 28.54545 305.0000
-## 3  medium 3140.909 1262.909 16.45455 339.6364</code></pre>
+format_table(MoyVarClass)</code></pre>
+<table class="table table-condensed">
+<thead>
+<tr>
+<th style="text-align:right;">
+Group.1
+</th>
+<th style="text-align:right;">
+TP
+</th>
+<th style="text-align:right;">
+Sun
+</th>
+<th style="text-align:right;">
+Heat
+</th>
+<th style="text-align:right;">
+Rain
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+bad
+</td>
+<td style="text-align:right;">
+3037.333
+</td>
+<td style="text-align:right;">
+1126.417
+</td>
+<td style="text-align:right;">
+12.08333
+</td>
+<td style="text-align:right;">
+430.3333
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+good
+</td>
+<td style="text-align:right;">
+3306.364
+</td>
+<td style="text-align:right;">
+1363.636
+</td>
+<td style="text-align:right;">
+28.54545
+</td>
+<td style="text-align:right;">
+305.0000
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+medium
+</td>
+<td style="text-align:right;">
+3140.909
+</td>
+<td style="text-align:right;">
+1262.909
+</td>
+<td style="text-align:right;">
+16.45455
+</td>
+<td style="text-align:right;">
+339.6364
+</td>
+</tr>
+</tbody>
+</table>
 <ul>
 <li><p>Matrice des Variances - Covariances par classes</p>
 <ul>
@@ -232,13 +302,13 @@ MoyVarClass</code></pre>
 <pre class="r"><code>#N=length(df_bad)
 df_bad &lt;- df%&gt;%filter(Quality==&quot;bad&quot;)
 df_bad &lt;- df_bad[, ! names(df_bad) %in% &quot;Quality&quot;, drop = F]
-covB &lt;- cov(df_bad)
+covB &lt;- var(df_bad)*((N-1)/N)
 covB</code></pre>
-<pre><code>##              TP         Sun      Heat        Rain
-## TP    4807.8788 -1003.60606 233.51515   227.06061
-## Sun  -1003.6061  7813.35606 157.41667   -59.78788
-## Heat   233.5152   157.41667  39.71970   -25.57576
-## Rain   227.0606   -59.78788 -25.57576 10992.60606</code></pre>
+<pre><code>##             TP        Sun      Heat        Rain
+## TP   4666.4706 -974.08824 226.64706   220.38235
+## Sun  -974.0882 7583.55147 152.78676   -58.02941
+## Heat  226.6471  152.78676  38.55147   -24.82353
+## Rain  220.3824  -58.02941 -24.82353 10669.29412</code></pre>
 <ul>
 <li><p>Matrice des Variances - Covariances par classes</p>
 <ul>
@@ -247,13 +317,13 @@ covB</code></pre>
 </ul>
 <pre class="r"><code>df_med &lt;- df%&gt;%filter(Quality==&quot;medium&quot;)
 df_med &lt;- df_med[, ! names(df_med) %in% &quot;Quality&quot;, drop = F]
-covM &lt;- cov(df_med)
+covM &lt;- cov(df_med)*((N-1)/N)
 covM</code></pre>
-<pre><code>##              TP       Sun      Heat      Rain
-## TP   10009.0909 3541.5909 587.94545 3793.0636
-## Sun   3541.5909 5175.4909 188.24545  912.0636
-## Heat   587.9455  188.2455  45.27273  226.2818
-## Rain  3793.0636  912.0636 226.28182 3023.4545</code></pre>
+<pre><code>##             TP       Sun      Heat      Rain
+## TP   9714.7059 3437.4265 570.65294 3681.5029
+## Sun  3437.4265 5023.2706 182.70882  885.2382
+## Heat  570.6529  182.7088  43.94118  219.6265
+## Rain 3681.5029  885.2382 219.62647 2934.5294</code></pre>
 <ul>
 <li><p>Matrice des Variances - Covariances par classes</p>
 <ul>
@@ -273,7 +343,12 @@ covG</code></pre>
 <pre class="r"><code>L1 &lt;- lapply(levels(df$Quality),function(x){
   return(list(
     &#39;CovClass&#39; = cov(subset(df,Quality ==x)[, ! names(df)%in% &quot;Quality&quot;, drop = F])*((N-1)/N),
-    &#39;nrow&#39; = nrow(subset(df,Quality ==x))
+    &#39;nrow&#39; = nrow(subset(df,Quality ==x)),
+    &#39;mean&#39; = list(
+  TP=mean((subset(df,df$Quality==x)$TP)),
+  Sun=mean((subset(df,df$Quality==x)$Sun)),
+  Heat=mean((subset(df,df$Quality==x)$Heat)),
+  Rain=mean((subset(df,df$Quality==x)$Rain)))
   )
   )
 }
@@ -297,6 +372,20 @@ L</code></pre>
 ## $G1$nrow
 ## [1] 12
 ## 
+## $G1$mean
+## $G1$mean$TP
+## [1] 3037.333
+## 
+## $G1$mean$Sun
+## [1] 1126.417
+## 
+## $G1$mean$Heat
+## [1] 12.08333
+## 
+## $G1$mean$Rain
+## [1] 430.3333
+## 
+## 
 ## 
 ## $G2
 ## $G2$CovClass
@@ -309,6 +398,20 @@ L</code></pre>
 ## $G2$nrow
 ## [1] 11
 ## 
+## $G2$mean
+## $G2$mean$TP
+## [1] 3306.364
+## 
+## $G2$mean$Sun
+## [1] 1363.636
+## 
+## $G2$mean$Heat
+## [1] 28.54545
+## 
+## $G2$mean$Rain
+## [1] 305
+## 
+## 
 ## 
 ## $G3
 ## $G3$CovClass
@@ -319,7 +422,20 @@ L</code></pre>
 ## Rain 3681.5029  885.2382 219.62647 2934.5294
 ## 
 ## $G3$nrow
-## [1] 11</code></pre>
+## [1] 11
+## 
+## $G3$mean
+## $G3$mean$TP
+## [1] 3140.909
+## 
+## $G3$mean$Sun
+## [1] 1262.909
+## 
+## $G3$mean$Heat
+## [1] 16.45455
+## 
+## $G3$mean$Rain
+## [1] 339.6364</code></pre>
 <ul>
 <li><p>Calcul des inerties :</p>
 <ul>
