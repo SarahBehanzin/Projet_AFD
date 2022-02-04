@@ -21,12 +21,6 @@ df$Quality <- factor(df$Quality)
 N <- nrow(df)
 head(df)
 ```
-* On supprimme d'abord la colonne QUALITY pour pourvoir calculer les moyennes
-
-```{r}
-# df_change <- df[, ! names(df) %in% "Quality", drop = F]
-# head(df_change)
-```
 
 * Moyenne des variables
 
@@ -39,22 +33,24 @@ MoyVar
 ````{r}
 MoyVarClass <- aggregate(df[, 1:4], list(df$Quality), mean)
 format_table(MoyVarClass)
+
 ````
 * Matrice des Variances - Covariances par classes
 
 ````{r}
-Df_C <- split(df[,1:4],df$Quality)
+Df_C <- split(df[,-5],df$Quality)
 
 L <- lapply(Df_C,
   function(x){
   return(list(
     'CovClass' = var(x)*((nrow(x)-1)/nrow(x)),
     'nrow' = nrow(x),
-    'mean' = list(
-                  TP=mean(x$TP),
-                  Sun=mean(x$Sun),
-                  Heat=mean(x$Heat),
-                  Rain=mean(x$Rain))
+    'mean' = colMeans(x)
+      # list(
+      #             TP=mean(x$TP),
+      #             Sun=mean(x$Sun),
+      #             Heat=mean(x$Heat),
+      #             Rain=mean(x$Rain))
   )
   )
 }
@@ -63,59 +59,108 @@ L
 
 ````
 
+````{r}
+AFD_class <- function(dfw)
+ {
+    #-> détection automatique des variables numériques
+  id_num <- which(sapply(dfw, is.numeric))
+  X <- dfw[,id_num]
+  
+  #-> .. on cherche la variable NON numérique ..
+  id_string  <- which(!sapply(dfw, is.numeric))
+  
+  #-> pour faciliter et uniformiser les recherches des classes, on renomme cette variable
+  names(dfw)[id_string] <- 'Quality' 
+   
+  #Partie 1 
+  dfw$Quality <- as.factor(dfw$Quality)
+   
+  coldata <- names(df[,-id_string])
+
+  Df_C <- split(dfw[,-id_string],dfw$Quality)
+  
+
+  
+  L <- lapply(Df_C,
+    function(x){
+    return(list(
+      'CovClass' = var(x)*((nrow(x)-1)/nrow(x)),
+      'nrow' = nrow(x),
+      'mean' = colMeans(x)
+        # list(
+        #             TP=mean(x$TP),
+        #             Sun=mean(x$Sun),
+        #             Heat=mean(x$Heat),
+        #             Rain=mean(x$Rain))
+      ))
+  }
+  )
+  k <- nlevels(dfw$Quality)
+  
+  ret   <- list(liste = L, k=k)
+  return(ret)
+}
+
+result <- AFD_class(df_exemple)
+print(result)
+
+````
+
 * Calcul des inerties : 
 
-  * Calcul de l'inertie Intra (W) 
+  * Calcul de l'inertie Intra, Inter et totale :
 ````{r}
 
-# W <- list()
-# for (i in 1:length(L)){
-#   W <- (1/N)*sum((L[[i]]$nrow*(L[[i]]$CovClass)))
-# }
-# W
+k <- nlevels(df$Quality)
+Inertie_intra <- 0
+Inertie_inter <- 0
+intra_valeur <- list()
+inter_valeur <- list()
 
-W <- (1/N)*((L$bad$nrow*(L$bad$CovClass))+(L$good$nrow*(L$good$CovClass))+(L$medium$nrow*(L$medium$CovClass)))
-W
+for (i in 1:k){
+  levels(df$Quality)[i] <- i
+  intra_valeur[[i]] <- list(v= L[[i]]$nrow*(L[[i]]$CovClass))
+  inter_valeur[[i]] <- list(v= (L[[i]]$nrow*(unlist(L[[i]]$mean)-unlist(MoyVar))%*%t(unlist(L[[i]]$mean)-unlist(MoyVar))) )
+  Inertie_intra <- (Inertie_intra + intra_valeur[[i]]$v) 
+  Inertie_inter <- (Inertie_inter + inter_valeur[[i]]$v) 
+}
+
+Inertie_intra <- Inertie_intra/N
+Inertie_inter <- Inertie_inter/N
+Inertie_tot <- Inertie_intra + Inertie_inter
+
+
+
 ````
-* Calcul des inerties : 
 
-  * Calcul de l'inertie Inter (B) 
-````{r}
-B <- (1/N)*((L$bad$nrow*(unlist(L$bad$mean)-unlist(MoyVar))%*%t(unlist(L$bad$mean)-unlist(MoyVar)))+(L$good$nrow*(unlist(L$good$mean)- unlist(MoyVar))%*%t(unlist(L$good$mean)-unlist(MoyVar)))+(L$medium$nrow*(unlist(L$medium$mean)-unlist(MoyVar))%*%t(unlist(L$medium$mean)- unlist(MoyVar))))
-
-B
-
-````
-* Calcul des inerties : 
-
-  * Calcul de l'inertie Totale (I)
-````{r}
-I <- W+B
-I
-````
 * Diagonalisation
 
   * Methode de Fisher
 ````{r}
-k <- 3
-p <- 4
-Bp <- N/(k-1)*B
-Bp
-Wp <- N/(N-k)*W
-Wp
+
+Inertie_intra_P <- N/(N-k)*Inertie_intra
+Inertie_inter_P <- N/(k-1)*Inertie_inter
+
+BW <- Inertie_inter_P%*%solve((Inertie_intra_P))
 ````
 
 ````{r}
-BW <- Bp%*%solve(Wp)
+nbr_axe <- k-1
+
 dBw <- eigen(BW)
-U <- Re(dBw$vectors)[,1:2]
+U <- Re(dBw$vectors)[,1:nbr_axe]
 normes <- sqrt(diag(t(U)%*%W%*%U))
 
 VecP <- sweep(U,2,normes,"/")
 # fonction sweep permets d'appliquer une procédure à notre m, elle permet aussi de centrer et réduire les colonnes de la matrice 
 VecPf <- VecP
+col <- list()
 rownames(VecPf)=c("TP","Sun","Heat","Rain")
-colnames(VecPf)=c("Axe_1","Axe_2")
+for( i in 1:nbr_axe){
+  nomcol <- paste0('Axe_',i)
+  col[i] <- nomcol
+}
+colnames(VecPf)=col
 
 
 ValP <- matrix(Re(dBw$values)[1:2],2,1)
@@ -127,6 +172,9 @@ rownames(ValPf)=c("Axe_1","Axe_2")
 ````
 
 ````{r}
+p <- 4
+
+
 inertie <- ValP/sum(ValP)*100
 cor <- sqrt(ValP/(1+ValP))
 Wilks <- (1-cor^2)
@@ -137,13 +185,192 @@ rownames(res)= c("u1","u2")
 
 ````
 
-## Partie 2
+````{r}
+#install.packages("openxlsx")
+library("openxlsx")
+df_exemple  <- read.xlsx(xlsxFile="prematures.xlsx")
+````
 
+````{r}
+ AFD_class <- function(dfw)
+ {
+    #-> détection automatique des variables numériques
+  id_num <- which(sapply(dfw, is.numeric))
+  X <- dfw[,id_num]
+  
+  #-> .. on cherche la variable NON numérique ..
+  id_string  <- which(!sapply(dfw, is.numeric))
+  
+  #-> pour faciliter et uniformiser les recherches des classes, on renomme cette variable
+  names(dfw)[id_string] <- 'Quality' 
+   
+  #Partie 1 
+  dfw$Quality <- as.factor(dfw$Quality)
+   
+  coldata <- names(df[,-id_string])
+
+  Df_C <- split(dfw[,-id_string],dfw$Quality)
+
+  L <- lapply(Df_C,
+    function(x){
+    return(list(
+      'CovClass' = var(x)*((nrow(x)-1)/nrow(x)),
+      'nrow' = nrow(x),
+      'mean' =  colMeans(x))
+      )
+  }
+  )
+  
+
+
+  MoyVar <- colMeans(X)
+
+  k <- nlevels(dfw$Quality)
+  Inertie_intra <- 0
+  Inertie_inter <- 0
+  intra_valeur <- list()
+  inter_valeur <- list()
+  
+  for (i in 1:k){
+    
+
+    intra_valeur[[i]] <- list(v= L[[i]]$nrow*(L[[i]]$CovClass))
+    inter_valeur[[i]] <- list(v= (L[[i]]$nrow*(unlist(L[[i]]$mean)-unlist(MoyVar))%*%t(unlist(L[[i]]$mean)-unlist(MoyVar))) )
+    Inertie_intra <- (Inertie_intra + intra_valeur[[i]]$v) 
+    Inertie_inter <- (Inertie_inter + inter_valeur[[i]]$v) 
+    
+  }
+  
+  Inertie_intra <- Inertie_intra/N
+  Inertie_inter <- Inertie_inter/N
+  Inertie_tot <- Inertie_intra + Inertie_inter
+
+  
+  Inertie_intra_P <- N/(N-k)*Inertie_intra
+  Inertie_inter_P <- N/(k-1)*Inertie_inter
+  
+  BW <- Inertie_inter_P%*%solve((Inertie_intra_P))
+  
+  nbr_axe <- k-1
+
+  dBw <- eigen(BW)
+  U <- Re(dBw$vectors)[,1:nbr_axe]
+  normes <- sqrt(diag(t(U)%*%Inertie_intra%*%U))
+
+  # VecP <- sweep(U,nbr_axe,normes,"/")
+  # # fonction sweep permets d'appliquer une procédure à notre m, elle permet aussi de centrer et réduire les colonnes de la matrice
+  # VecPf <- VecP
+  # 
+  # 
+  # rownames(VecPf)<-  coldata
+  # col <- list()
+  # for( i in 1:nbr_axe){
+  #   nomcol <- paste0('Axe_',i)
+  #   col[i] <- nomcol
+  # }
+  # colnames(VecPf)<- col
+  # 
+  # ValP <- matrix(Re(dBw$values)[1:2],2,1)
+  # ValPf <- ValP
+  # colnames(ValPf)<-c("valeurs_propres")
+  # rownames(ValPf)<- col
+  # 
+  # p <- 4
+  # 
+  # inertie <- ValP/sum(ValP)*100
+  # cor <- sqrt(ValP/(1+ValP))
+  # Wilks <- (1-cor^2)
+  # Kh2 <- -(N - (p+k)/2 -1)*log(Wilks)
+  # res <- matrix(c(ValP,inertie,cor,Wilks,Kh2),2,5)
+  # colnames(res)<- c("valeur propres","% inertie","correlation","Wilks","Kh Deux")
+  # u <- list()
+  # for( i in 1:nbr_axe){
+  # nomcol <- paste0('u',i)
+  # u[i] <- nomcol
+  # }
+  # rownames(res)<-  u
+  # 
+ #Partie 2 
+  # 
+  # df_change <- df[, ! names(df) %in% "Quality", drop = F]
+  # Zij <- scale(df_change, center = TRUE, scale = FALSE)
+  # Zij <-  scale(df_change, center = TRUE, scale = FALSE)
+  # Coord_axe <- list()
+  # for (i in 1:nbr_axe){
+  #   nomcol <- paste0('Axe_',i)
+  #   a <- Zij%*%VecP[,i]
+  #   Coord_axe[nomcol] <- list(a)
+  # }
+  # Scores_sans_fac <- data.frame(Coord_axe)
+  # Scores <- data.frame(Coord_axe,Quality = df$Quality)
+  #  
+  # Centre_Gravite_fac <- aggregate(Scores_sans_fac, list(df$Quality), mean)
+
+  ret   <- list(liste = L, Iw = Inertie_intra, Ib = Inertie_inter, Itot = Inertie_tot, IwP = Inertie_intra_P , IbP = Inertie_inter_P,                   rapp = BW, dbw=dBw
+                #VecPropre = VecPf  
+                #, ValPropre= ValPf, InfStat = res, 
+                #Score = Scores 
+                #,Centre_Gravite_fac = Centre_Gravite_fac 
+                )
+
+  return(ret)
+  
+ }
+
+result <- AFD_class(df_exemple)
+print(result)
+
+````
+
+## Partie 2
+* 2. Calcul des coordonnées des individus dans le plan factoriel
 ````{r}
 library(ggplot2)
 
 ````
 
-````{r}
 
-````
+```{r}
+df_change <- df[, ! names(df) %in% "Quality", drop = F]
+df_change
+```
+
+````{r}
+Zij = scale(df_change, center = TRUE, scale = FALSE)
+# a = Zij%*%VecP[,1]
+# b = Zij%*%VecP[,2]
+Coord_axe <- list()
+for (i in 1:nbr_axe){
+  nomcol <- paste0('Axe_',i)
+  a <- Zij%*%VecP[,i]
+  Coord_axe[nomcol] <- list(a)
+}
+Scores <- data.frame(Coord_axe,Quality = df$Quality)
+Scores
+```
+
+
+```{r}
+
+names(Scores)[3] <- 'class' <- 'class'
+
+gr_ind <- ggplot() +  geom_point(data = Scores  ,aes( x = Axe_1, y = Axe_2, colour = class, shape = class))                                # trace les points
+gr_ind <- gr_ind   +  geom_hline(yintercept = 0 , size = 0.1, colour = '#CCCCCC') + geom_vline(xintercept  = 0, size = 0.1,colour = '#CCCCCC') # trace les lignes
+gr_ind <- gr_ind   +  xlim(c(-5,4)) + ylim(c(-3,3))  # uniformités des échelles
+gr_ind
+
+```
+
+* 3. Classification
+
+```{r}
+G_fac <- aggregate(Scores[,1:2], list(df$Quality), mean)
+G_fac
+```
+
+```{r}
+ gr_ind <- ggplot() +  geom_point(data = G_fac  ,aes( x = Axe_1, y = Axe_2, colour = Group.1, shape =  Group.1), size = 3)  +  # trace les centres de gravité
+                       geom_hline(yintercept = 0 , size = 0.1, colour = '#CCCCCC') + geom_vline(xintercept  = 0, size = 0.1,colour = '#CCCCCC') + # trace les lignes
+                       xlim(c(-5,4)) + ylim(c(-3,3)) 
+ gr_ind
+```
