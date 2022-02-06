@@ -1,18 +1,30 @@
 ---
-title: "AFD"
+title: "BELGACEM_BEHANZIN_AP_4204_2022"
 output: html_document
 ---
 
 ## Partie 1
 
+#### Introduction 
+
 * Librairies utilisées
 
 ````{r}
+#install.packages("openxlsx")
+
 library(formattable)
 library(rstatix)
+library(openxlsx)
+library(ggplot2)
+library(MASS)
+library(caret)
+
 ````
 
 * Importation des données
+
+On commence par recuperer le jeu de données. On transforme la colonne categorielle en colonne factorielle, ce qui est necessaire pour l'AFD.
+On va ensuite recuperer le nombre d'observations.
 
 ```{r}
 rm(list = ls())
@@ -22,23 +34,36 @@ N <- nrow(df)
 head(df)
 ```
 
-* Moyenne des variables
+#### Calcul des inerties :
+
+Ici, nous allons réaliser tous les calculs préliminaires à l'estimation des inerties.
+
+On commence par calculer la moyenne générale :
 
 ````{r}
+#Calcul moyenne générale
 MoyVar <- colMeans(df[,1:4])
 MoyVar
 ````
-* Moyennes de variables par classe
+
+On va ensuite calculer les moyennes de variables par classe:
 
 ````{r}
+#Moyennes de variables par classe
 MoyVarClass <- aggregate(df[, 1:4], list(df$Quality), mean)
-format_table(MoyVarClass)
+MoyVarClass
 
 ````
-* Matrice des Variances - Covariances par classes
+
+Pour faciliter nos calculs, on va stocker tous les résultats dans une liste. 
 
 ````{r}
+#On divise notre base de donnée en fonction du nombres de classes.
+
 Df_C <- split(df[,-5],df$Quality)
+
+#Grace à la fonction lapply(), on va appliquer plusieurs calculs pour les estimations des inerties à notre base de donnée calculé ci-dessous.
+#On commence par calculer les Variances par classe, puis on recupere le nombre de observations par classe et la la moyenne de chaque colonne par classe.
 
 L <- lapply(Df_C,
   function(x){
@@ -46,314 +71,237 @@ L <- lapply(Df_C,
     'CovClass' = var(x)*((nrow(x)-1)/nrow(x)),
     'nrow' = nrow(x),
     'mean' = colMeans(x)
-      # list(
-      #             TP=mean(x$TP),
-      #             Sun=mean(x$Sun),
-      #             Heat=mean(x$Heat),
-      #             Rain=mean(x$Rain))
   )
   )
 }
 )
 L
-
 ````
 
+Nous allons réaliser maintenant le calcul des inerties grâce à la liste calculé précedemment.
+
 ````{r}
-AFD_class <- function(dfw)
- {
-    #-> détection automatique des variables numériques
-  id_num <- which(sapply(dfw, is.numeric))
-  X <- dfw[,id_num]
-  
-  #-> .. on cherche la variable NON numérique ..
-  id_string  <- which(!sapply(dfw, is.numeric))
-  
-  #-> pour faciliter et uniformiser les recherches des classes, on renomme cette variable
-  names(dfw)[id_string] <- 'Quality' 
-   
-  #Partie 1 
-  dfw$Quality <- as.factor(dfw$Quality)
-   
-  coldata <- names(df[,-id_string])
-
-  Df_C <- split(dfw[,-id_string],dfw$Quality)
-  
-
-  
-  L <- lapply(Df_C,
-    function(x){
-    return(list(
-      'CovClass' = var(x)*((nrow(x)-1)/nrow(x)),
-      'nrow' = nrow(x),
-      'mean' = colMeans(x)
-        # list(
-        #             TP=mean(x$TP),
-        #             Sun=mean(x$Sun),
-        #             Heat=mean(x$Heat),
-        #             Rain=mean(x$Rain))
-      ))
-  }
-  )
-  k <- nlevels(dfw$Quality)
-  
-  ret   <- list(liste = L, k=k)
-  return(ret)
-}
-
-result <- AFD_class(df_exemple)
-print(result)
-
-````
-
-* Calcul des inerties : 
-
-  * Calcul de l'inertie Intra, Inter et totale :
-````{r}
-
+#On recupere le nombre de classe. 
 k <- nlevels(df$Quality)
+
+#Initialisation des variables que nous allons utiliser dans nos calculs.
 Inertie_intra <- 0
 Inertie_inter <- 0
 intra_valeur <- list()
 inter_valeur <- list()
 
+#
 for (i in 1:k){
-  levels(df$Quality)[i] <- i
+
+  #Calcul de l'inertie intra et on stocke la valeur dans une liste.
   intra_valeur[[i]] <- list(v= L[[i]]$nrow*(L[[i]]$CovClass))
-  inter_valeur[[i]] <- list(v= (L[[i]]$nrow*(unlist(L[[i]]$mean)-unlist(MoyVar))%*%t(unlist(L[[i]]$mean)-unlist(MoyVar))) )
+  #Calcul de l'inertie inter et on stocke la valeur dans une liste.
+  inter_valeur[[i]] <- list(v= (L[[i]]$nrow*(unlist(L[[i]]$mean)-unlist(MoyVar))%*%t(unlist(L[[i]]$mean)-unlist(MoyVar))))
+  
+  #Somme des élements de la liste pour l'inertie intra 
   Inertie_intra <- (Inertie_intra + intra_valeur[[i]]$v) 
+  #Somme des élements de la liste pour l'inertie inter 
   Inertie_inter <- (Inertie_inter + inter_valeur[[i]]$v) 
 }
 
+#On divise l'inertie intra et inter par le nombre d'observations pour obtenir la valeur définitive.
 Inertie_intra <- Inertie_intra/N
 Inertie_inter <- Inertie_inter/N
+
+#Ici, on calcule l'inertie totale.
 Inertie_tot <- Inertie_intra + Inertie_inter
 
-
-
+Inertie_intra
+Inertie_inter
+Inertie_tot
 ````
 
-* Diagonalisation
+#### Diagonalisation :
+
+Avant de réaliser la diagonalisation, il nous faut calculer les inerties intra et inter pondéré qui va ensuite nous permettre de calculer le rapport B/W pondéré. De ce rapport, nous pourrons extraire les vecteurs propres qui correspondent aux vecteurs directeurs des axes factoriels.
 
   * Methode de Fisher
+
+On commence par pondérer nos inerties :
 ````{r}
+# Calcul nous permetttant de pondérer nos inerties.
 
+#Inertie intra pondéré
 Inertie_intra_P <- N/(N-k)*Inertie_intra
-Inertie_inter_P <- N/(k-1)*Inertie_inter
 
+#Inertie inter pondéré
+Inertie_inter_P <- N/(k-1)*Inertie_inter
+#remarque : ici, k-1 representent la valeur du nombre d'axes maximale
+
+#Rapport des deux ineries pondéré ( correponds au rapport entre l'effet inter colonne et le signal )
 BW <- Inertie_inter_P%*%solve((Inertie_intra_P))
+BW
 ````
 
+  * Calcul des vecteurs propres et des valeurs propres
+
+Grâce au rapport calculé dans la partie précédente, on va pouvoir déduire les vecteurs et valeurs propres liés à notre jeu de donnée.
 ````{r}
+#Initialisation de valeurs qui vont nous servir pendant les calcules
+
+#Valeur du nombre d'axes
 nbr_axe <- k-1
 
-dBw <- eigen(BW)
-U <- Re(dBw$vectors)[,1:nbr_axe]
-normes <- sqrt(diag(t(U)%*%W%*%U))
 
+#Utilisation de la fonction eigen qui va nous retourner les valeurs propres et les vecteurs propres  
+dBw <- eigen(BW)
+
+
+#On stock la partie réelle des vecteurs propres
+U <- Re(dBw$vectors)[,1:nbr_axe]
+#Remarque : on stock ici 1:nrb_axe colonnes. En effet, le nombre de colonne des vecteurs propres doit être égale au nombres d'axes que nous avons
+
+
+#normes des vecteurs propres
+normes <- sqrt(diag(t(U)%*%Inertie_intra%*%U))
+
+
+#Vecteur propres normés
 VecP <- sweep(U,2,normes,"/")
-# fonction sweep permets d'appliquer une procédure à notre m, elle permet aussi de centrer et réduire les colonnes de la matrice 
-VecPf <- VecP
+#fonction sweep permets d'appliquer une procédure à notre m, elle permet aussi de centrer et réduire les colonnes de la matrice.
+#On lui renseigne d'abord les données : U 
+#En deuxième argument, on renseigne si on applique le calcul sur les lignes ou les colonnes : (1 : colonnes) et (2 : lignes)
+#En dernier argument, on lui renseigne l'opération que nous voulons utiliser : /
+#Remarque : en testant sur les jeux de données VIN_QUALITE et PREMATURE, on remarque que la fonction sweep n'est pas adapter pour tous nos cas, c'est à dire qu'elle renseigne une erreur si le nombre d'axe est plus petit (en l'occurence 1 pour le jeu de donnée PREMATURE)
+
+#C'est pourquoi dans l'implémentation de la fonction, on utilise une autre manière de calculer le vecteur propre normé.
+
+#La boucle nous permets de bien mettre en forme le résultat en fonction de notre nombre axe.
+#Elle nous sera plus utilise lors de l'implémentation dans une fonction.
 col <- list()
-rownames(VecPf)=c("TP","Sun","Heat","Rain")
 for( i in 1:nbr_axe){
   nomcol <- paste0('Axe_',i)
   col[i] <- nomcol
 }
-colnames(VecPf)=col
+#On renseigne alors le nom des colonnes et des lignes de notre vecteur propre.
+colnames(VecP)=col
+rownames(VecP)=c("TP","Sun","Heat","Rain")
 
 
+#Calcul des valeurs propres et mise en forme dans une matrice.
 ValP <- matrix(Re(dBw$values)[1:2],2,1)
-ValPf <- ValP
-colnames(ValPf)=c("valeurs_propres")
-rownames(ValPf)=c("Axe_1","Axe_2")
+#On renseigne alors le nom des colonnes et des lignes de notre valeur propre.
+colnames(ValP)=c("valeurs_propres")
+rownames(ValP)=c("Axe_1","Axe_2")
 
-#petit p = 4
+VecP
+ValP
+````
+ 
+#### Inference Statistique :
+
+  
+Nous allons construire le test statistique nous permettant de valider le caractère discriminant des axes factoriels.
+
+On réalise alors le calcul de 5 valeurs :
+ 
+ 1. La dispersion
+````{r}
+#Calcul dispersion
+dispersion <- ValP/sum(ValP)*100
 ````
 
+ 
+ 2. La corrélation canonique
 ````{r}
-p <- 4
-
-
-inertie <- ValP/sum(ValP)*100
+#Calcul corrélation
 cor <- sqrt(ValP/(1+ValP))
+````
+
+ 
+ 3. Wilks
+````{r}
+#Wilks
 Wilks <- (1-cor^2)
+````
+
+ 
+ 4. Khi Deux 
+````{r}
+p <- length(df[,-5])
+
+#KHI 2
 Kh2 <- -(N - (p+k)/2 -1)*log(Wilks)
-res <- matrix(c(ValP,inertie,cor,Wilks,Kh2),2,5)
-colnames(res)=c("valeur propres","% inertie","correlation","Wilks","Kh Deux")
+````
+
+ 5. la p-valeur
+````{r}
+#pvalue
+pvalue <- (1-pchisq(Kh2, p*2))
+````
+   * Résultats 
+
+ Le resultats est construit avec 6 résultats : 
+ 
+ 1. Valeurs propres 
+ 2. Dispersion
+ 3. Corrélation
+ 4. Wilks
+ 5. Kh Deux
+ 6. P Value
+
+````{r}
+#Création de la matrice contenant les résultats du test statistique
+res <- matrix(c(ValP,dispersion,cor,Wilks,Kh2,pvalue),2,6)
+
+#Mise en forme du résultats
+colnames(res)=c("valeur propres","% inertie","correlation","Wilks","Kh Deux","p.value")
 rownames(res)= c("u1","u2")
-
+res
 ````
 
-````{r}
-#install.packages("openxlsx")
-library("openxlsx")
-df_exemple  <- read.xlsx(xlsxFile="prematures.xlsx")
-````
-
-````{r}
- AFD_class <- function(dfw)
- {
-    #-> détection automatique des variables numériques
-  id_num <- which(sapply(dfw, is.numeric))
-  X <- dfw[,id_num]
-  
-  #-> .. on cherche la variable NON numérique ..
-  id_string  <- which(!sapply(dfw, is.numeric))
-  
-  #-> pour faciliter et uniformiser les recherches des classes, on renomme cette variable
-  names(dfw)[id_string] <- 'Quality' 
-   
-  #Partie 1 
-  dfw$Quality <- as.factor(dfw$Quality)
-   
-  coldata <- names(df[,-id_string])
-
-  Df_C <- split(dfw[,-id_string],dfw$Quality)
-
-  L <- lapply(Df_C,
-    function(x){
-    return(list(
-      'CovClass' = var(x)*((nrow(x)-1)/nrow(x)),
-      'nrow' = nrow(x),
-      'mean' =  colMeans(x))
-      )
-  }
-  )
-  
-
-
-  MoyVar <- colMeans(X)
-
-  k <- nlevels(dfw$Quality)
-  Inertie_intra <- 0
-  Inertie_inter <- 0
-  intra_valeur <- list()
-  inter_valeur <- list()
-  
-  for (i in 1:k){
-    
-
-    intra_valeur[[i]] <- list(v= L[[i]]$nrow*(L[[i]]$CovClass))
-    inter_valeur[[i]] <- list(v= (L[[i]]$nrow*(unlist(L[[i]]$mean)-unlist(MoyVar))%*%t(unlist(L[[i]]$mean)-unlist(MoyVar))) )
-    Inertie_intra <- (Inertie_intra + intra_valeur[[i]]$v) 
-    Inertie_inter <- (Inertie_inter + inter_valeur[[i]]$v) 
-    
-  }
-  
-  Inertie_intra <- Inertie_intra/N
-  Inertie_inter <- Inertie_inter/N
-  Inertie_tot <- Inertie_intra + Inertie_inter
-
-  
-  Inertie_intra_P <- N/(N-k)*Inertie_intra
-  Inertie_inter_P <- N/(k-1)*Inertie_inter
-  
-  BW <- Inertie_inter_P%*%solve((Inertie_intra_P))
-  
-  nbr_axe <- k-1
-
-  dBw <- eigen(BW)
-  U <- Re(dBw$vectors)[,1:nbr_axe]
-  normes <- sqrt(diag(t(U)%*%Inertie_intra%*%U))
-
-  # VecP <- sweep(U,nbr_axe,normes,"/")
-  # # fonction sweep permets d'appliquer une procédure à notre m, elle permet aussi de centrer et réduire les colonnes de la matrice
-  # VecPf <- VecP
-  # 
-  # 
-  # rownames(VecPf)<-  coldata
-  # col <- list()
-  # for( i in 1:nbr_axe){
-  #   nomcol <- paste0('Axe_',i)
-  #   col[i] <- nomcol
-  # }
-  # colnames(VecPf)<- col
-  # 
-  # ValP <- matrix(Re(dBw$values)[1:2],2,1)
-  # ValPf <- ValP
-  # colnames(ValPf)<-c("valeurs_propres")
-  # rownames(ValPf)<- col
-  # 
-  # p <- 4
-  # 
-  # inertie <- ValP/sum(ValP)*100
-  # cor <- sqrt(ValP/(1+ValP))
-  # Wilks <- (1-cor^2)
-  # Kh2 <- -(N - (p+k)/2 -1)*log(Wilks)
-  # res <- matrix(c(ValP,inertie,cor,Wilks,Kh2),2,5)
-  # colnames(res)<- c("valeur propres","% inertie","correlation","Wilks","Kh Deux")
-  # u <- list()
-  # for( i in 1:nbr_axe){
-  # nomcol <- paste0('u',i)
-  # u[i] <- nomcol
-  # }
-  # rownames(res)<-  u
-  # 
- #Partie 2 
-  # 
-  # df_change <- df[, ! names(df) %in% "Quality", drop = F]
-  # Zij <- scale(df_change, center = TRUE, scale = FALSE)
-  # Zij <-  scale(df_change, center = TRUE, scale = FALSE)
-  # Coord_axe <- list()
-  # for (i in 1:nbr_axe){
-  #   nomcol <- paste0('Axe_',i)
-  #   a <- Zij%*%VecP[,i]
-  #   Coord_axe[nomcol] <- list(a)
-  # }
-  # Scores_sans_fac <- data.frame(Coord_axe)
-  # Scores <- data.frame(Coord_axe,Quality = df$Quality)
-  #  
-  # Centre_Gravite_fac <- aggregate(Scores_sans_fac, list(df$Quality), mean)
-
-  ret   <- list(liste = L, Iw = Inertie_intra, Ib = Inertie_inter, Itot = Inertie_tot, IwP = Inertie_intra_P , IbP = Inertie_inter_P,                   rapp = BW, dbw=dBw
-                #VecPropre = VecPf  
-                #, ValPropre= ValPf, InfStat = res, 
-                #Score = Scores 
-                #,Centre_Gravite_fac = Centre_Gravite_fac 
-                )
-
-  return(ret)
-  
- }
-
-result <- AFD_class(df_exemple)
-print(result)
-
-````
 
 ## Partie 2
-* 2. Calcul des coordonnées des individus dans le plan factoriel
-````{r}
-library(ggplot2)
+ 
+#### Calcul des coordonnées des individus dans le plan factoriel :
 
-````
+Pour réaliser cela, on va effectuer une projection des observations centrées sur les axes factoriels.
 
 
-```{r}
-df_change <- df[, ! names(df) %in% "Quality", drop = F]
-df_change
-```
+On va utiliser la fonction scale() qui permets de centrer les données.
 
 ````{r}
-Zij = scale(df_change, center = TRUE, scale = FALSE)
+
+#Calcul de la matrice des observations centrées. 
+Zij = scale(df[,-5], center = TRUE, scale = FALSE)
+
+#Au début, je recuperais les deux colonnes composant Zij pour constituer la variable Score
 # a = Zij%*%VecP[,1]
 # b = Zij%*%VecP[,2]
+
+#Par soucis d'automatisation pour l'implémentation de la fonction, j'ai realisé le code suivant :
+#Ce code permets de créer la variable score en fonction du nombres d'axe et donc du nombres de classe.
 Coord_axe <- list()
 for (i in 1:nbr_axe){
   nomcol <- paste0('Axe_',i)
   a <- Zij%*%VecP[,i]
   Coord_axe[nomcol] <- list(a)
 }
+
+
+#Création de la variable Score sans la variable factorielle 
+Scores_sans_fac <- data.frame(Coord_axe)
+Scores_sans_fac
+
+#Création de la variable Score avec la variable factorielle relative aux classes
 Scores <- data.frame(Coord_axe,Quality = df$Quality)
 Scores
 ```
 
 
 ```{r}
+#Permet d'identifier l'index de la colonne de la variable factorielle
+id_scores  <- which(!sapply(Scores, is.numeric))
 
-names(Scores)[3] <- 'class' <- 'class'
+#Permet de renommer la colonne avec la variable factorielle
+names(Scores)[id_scores] <- 'class' <- 'class'
 
+#Création du script permettant la représentation des individus dans le plan fctoriel;
 gr_ind <- ggplot() +  geom_point(data = Scores  ,aes( x = Axe_1, y = Axe_2, colour = class, shape = class))                                # trace les points
 gr_ind <- gr_ind   +  geom_hline(yintercept = 0 , size = 0.1, colour = '#CCCCCC') + geom_vline(xintercept  = 0, size = 0.1,colour = '#CCCCCC') # trace les lignes
 gr_ind <- gr_ind   +  xlim(c(-5,4)) + ylim(c(-3,3))  # uniformités des échelles
@@ -361,16 +309,430 @@ gr_ind
 
 ```
 
-* 3. Classification
+#### Classification :
 
+* Calcul des centres de gravités 
+
+On commence par calculer les centres de gravites de chaque classe dans le plan factoriel.
 ```{r}
-G_fac <- aggregate(Scores[,1:2], list(df$Quality), mean)
+#Calcul des centres de gravités de chaque classe.
+G_fac <- aggregate(Scores_sans_fac, list(df$Quality), mean)
 G_fac
 ```
 
 ```{r}
+#On reprends le script précedent et on affiche la position des centres de gravité.
  gr_ind <- ggplot() +  geom_point(data = G_fac  ,aes( x = Axe_1, y = Axe_2, colour = Group.1, shape =  Group.1), size = 3)  +  # trace les centres de gravité
                        geom_hline(yintercept = 0 , size = 0.1, colour = '#CCCCCC') + geom_vline(xintercept  = 0, size = 0.1,colour = '#CCCCCC') + # trace les lignes
                        xlim(c(-5,4)) + ylim(c(-3,3)) 
  gr_ind
 ```
+````{r}
+
+````
+* Calcul des distances entre les inidividus et les centres de gravité
+
+On calcule la distance entre chaque observation et leur centre de gravité
+
+````{r}
+
+#on enleve la colonne avec la variable factorielle
+value_CG_fac  <-  as.matrix(G_fac[which(sapply(G_fac, is.numeric))])
+
+#Creation de la variable qui va contenir les valeurs 
+dist <- NULL
+
+for(i in 1:k){
+  #col_dist represente la soustraction des scores et des centres de gravités 
+  col_dist <- Scores[1:ncol(Scores)-1] - matrix(value_CG_fac[i,],ncol = ncol(value_CG_fac) , nrow = N, byrow = T)
+  #On applique la fonction qui permet de calculer la distance euclidienne et on les combine
+  dist <- cbind(dist,apply(col_dist,1,function(x){return(sqrt(sum(x*x)))}))
+}
+dist <- as.data.frame(dist)
+names(dist) <- G_fac[,1]
+dist
+````
+
+On va maintenant s'interesser à réaliser le tableau comparant les affectations liées aux prédictions et l'appartenance réelle de l'observation au groupe.
+
+Tout d'abord, on réalise la prédiction d'appartenance. Pour cela, on s'aide des distances calculées précedemment. 
+
+Pour determiner les prédictions, on regarde pour chaque ligne la distance la plus faible et on retourne l'indice de la colonne qui represente la classe.
+````{r}
+#Calcul des prédictions d'appartenance
+quality_pred <- as.factor(apply(dist, 1, which.min))
+
+#Tableau de comparaison entre l'appartenance réelle et la prédiction
+pred_class <- data.frame(TrueValue= df$Quality,Prediction=levels(df$Quality)[quality_pred])
+pred_class$Prediction<- as.factor(pred_class$Prediction)
+pred_class
+````
+
+#### Qualité de la prédiction :
+
+Pour cela, on utilise la fonction confusionMatrix du package caret.
+
+````{r}
+confusionMatrix(pred_class$Prediction, pred_class$TrueValue)
+
+````
+On affiche ensuite le graphique des inidividus mal classés dans le plan factoriel.
+
+````{r}
+Scores <- cbind(Scores, good_class = ifelse(pred_class$Prediction ==  pred_class$TrueValue, 'good','bad') )
+
+gr_ind <- ggplot() + geom_point(data = Scores, aes(x = Axe_1, y = Axe_2, colour = class), size = 2)    +
+                     geom_text (data = Scores, aes(x = Axe_1, y = Axe_2, label = good_class, colour = good_class), hjust = 1, vjust = 0 ) +
+                     geom_point(data = G_fac,  aes(x = Axe_1, y = Axe_2, colour = Group.1, shape =  Group.1), size = 3)  +  # trace les centres de gravité
+                     geom_hline(yintercept = 0 , size = 0.1, colour = '#CCCCCC') + geom_vline(xintercept  = 0, size = 0.1,colour = '#CCCCCC') 
+gr_ind  
+````
+
+
+## Partie 3 : 
+#### Classification Bayésienne
+
+L'objectif de cette partie est de comparer la classification obtenue à l'aide d'une autre méthode : l'analyse linéaire disciminante.
+On va utiliser la fonction lda du package MASS.
+
+Nous allons utiliser 3 arguments de celle-ci :
+
+1- le premier est celui qui renseigne la variable factorielle et les variables explicatives. Dans notres cas, on mets Quality ~. , le point veut simplement dire que l'on veut prendres toutes les variables restantes.
+
+2- le second est data qui permets de renseigner la data frame
+
+3- le troisième est CV qui permets d'avoir des résultats plus fiable. Elle permets de réaliser une validation croisée.
+
+````{r}
+model <- lda(Quality ~., data = df, CV=T)
+model
+````
+
+On crée ensuite une matrice de confusion pour déterminer la qualité de la prédiction.
+````{r}
+confusionMatrix(df$Quality, model$class)
+````
+* Interprétation : 
+
+En comparant nos deux classification grâce à la fonction confusionMatrix, on peut en conclure que pour noter jeu de donnée VIN_QUALITE, la précision est meilleure avec notre AFD que avec la LDA. 
+
+## Partie 4: 
+
+Dans cette dernière partie, on va s'interesser à l'encapsulation de tous les calculs que nous avons fait dans une fonction afin de automatiser les calculs.
+
+Nous allons travailler sur le fichier prematures.xlsx.
+
+La fonction va devoir nous retourner : 
+- la Covariance
+- la moyenne par colonne
+- le nombre d'observation par classe
+- les inerties intra, inter et totale.
+- le rapport B/W
+- les valeurs propres
+- les vecteurs propres
+- le test statistique 
+- les coordonnées des individus dans le plan factoriel (Scores)
+- les centres de gravites
+- la distance entre les observations et les centres de gravités
+- les graphiques 
+````{r}
+rm(list = ls())
+
+AFD_class <- function(dfw)
+{
+  #-> détection automatique des variables numériques
+  id_num <- which(sapply(dfw, is.numeric))
+  X <- dfw[,id_num]
+  
+  #-> .. on cherche la variable NON numérique ..
+  id_string  <- which(!sapply(dfw, is.numeric))
+  
+  #-> pour faciliter et uniformiser les recherches des classes, on renomme cette variable
+  names(dfw)[id_string] <- 'Quality' 
+  
+  # On transforme la colonne categorielle en colonne factorielle
+  dfw$Quality <- as.factor(dfw$Quality)
+  
+  ###Partie 1
+  
+  ## Calcul des Covariance, du nombre d'observations et des moyennes par classe
+  
+  #On divise notre base de donnée, en excluant la colonne factorielle, en fonction du nombres de classes.
+  Df_C <- split(dfw[,-id_string],dfw$Quality)
+  
+  #Grace à la fonction lapply(), on va appliquer plusieurs calculs pour les estimations des inerties à notre base de donnée calculé      ci-dessous.
+  #On commence par calculer les Variances par classe, puis on recupere le nombre de ligne par classe et la la moyenne de chaque colonne   par classe.
+  L <- lapply(Df_C,
+              function(x){
+                return(list(
+                  'CovClass' = var(x)*((nrow(x)-1)/nrow(x)),
+                  'nrow' = nrow(x),
+                  'mean' =  colMeans(x))
+                )
+              }
+  )
+  
+  
+  #Calcul moyenne générale en excluant la colonne factorielle
+  MoyVar <- colMeans(dfw[,-id_string])
+  
+  
+  ## Calcul des inerties inter, intra et totale
+  
+  
+  #On recupere le nombre de niveau de notre jeu de donnée
+  k <- nlevels(dfw$Quality)
+  
+  #Initialisation des variables que nous allons utiliser dans nos calculs.
+  Inertie_intra <- 0
+  Inertie_inter <- 0
+  intra_valeur <- list()
+  inter_valeur <- list()
+  
+
+  for (i in 1:k){
+    
+    #Calcul de l'inertie intra et on stocke la valeur dans une liste.
+    intra_valeur[[i]] <- list(v= L[[i]]$nrow*(L[[i]]$CovClass))
+    #Calcul de l'inertie inter et on stocke la valeur dans une liste.
+    inter_valeur[[i]] <- list(v= (L[[i]]$nrow*(unlist(L[[i]]$mean)-unlist(MoyVar))%*%t(unlist(L[[i]]$mean)-unlist(MoyVar))))
+    
+    
+    #Somme des élements de la liste pour l'inertie intra 
+    Inertie_intra <- (Inertie_intra + intra_valeur[[i]]$v) 
+    #Somme des élements de la liste pour l'inertie inter 
+    Inertie_inter <- (Inertie_inter + inter_valeur[[i]]$v) 
+    
+  }
+  
+  #On recupere le nombre dobservation de notre jeu de donnéeS
+  N <- nrow(dfw)
+  
+  #On divise l'inertie intra et inter par le nombre d'observations pour obtenir la valeur définitive.
+  Inertie_intra <- Inertie_intra/N
+  Inertie_inter <- Inertie_inter/N
+  
+  #Calcul inertie totale
+  Inertie_tot <- Inertie_intra + Inertie_inter
+  
+  
+  ## Calcul du rapport  
+  
+  
+  #Inertie intra pondéré
+  Inertie_intra_P <- N/(N-k)*Inertie_intra
+  #Inertie inter pondéré
+  Inertie_inter_P <- N/(k-1)*Inertie_inter
+  #remarque : ici, k-1 representent la valeur du nombre d'axes maximale
+  
+  #Calcul du rapport entres les deux inerties pondérées
+  BW <- Inertie_inter_P%*%solve((Inertie_intra_P))
+  
+  
+  ## Calcul des Valeurs propres et Vecteurs propres
+  
+  
+  #Valeur du nombre d'axes
+  nbr_axe <- k-1
+
+  #Utilisation de la fonction eigen qui va nous retourner les valeurs propres et les vecteurs propres  
+  dBw <- eigen(BW)
+  
+  #On stock la partie réelle des vecteurs propres
+  U <- Re(dBw$vectors)[,1:nbr_axe]
+  #Remarque : on stock ici 1:nrb_axe colonnes. En effet, le nombre de colonne des vecteurs propres doit être égale au nombres d'axes     que nous avons
+  
+  
+  #normes des vecteurs propres
+  normes <- sqrt(diag(t(U)%*%Inertie_intra%*%U))
+  
+  #Calcul des vecteurs propres normés
+  VecP<- t(t(U)/normes)
+  #Remarque : comme expliqué dans le partie 2, on utilise un autre calcul qui permet de simplifier le calcul des vecteurs normés dans    l'implémentation de la fonction.
+  
+  #On va mettre en forme le résultat en fonction des noms des colonnes et des nombres d'axes.
+  #permets de recuperer les noms des colonnes (sans la colonne factorielle) pour pouvoir les mettre dans les lignes du tableau
+  coldata <- names(dfw[,-id_string])
+  rownames(VecP)<-  coldata
+  
+  #Boucle permettant de mettre le nombre d'axe dans le nom des colonnes
+  col <- list()
+  for( i in 1:nbr_axe){
+    nomcol <- paste0('Axe_',i)
+    col[i] <- nomcol
+  }
+  colnames(VecP)<- col
+  
+  #Calcul des valeurs propres et mise en forme dans une matrice en fonction du nombres d'axe.
+  ValP <- matrix(Re(dBw$values)[1:nbr_axe],nbr_axe,1)
+  colnames(ValP)<-c("valeurs_propres")
+  rownames(ValP)<- col
+  
+  
+  ##Calcul du test statistique
+  
+  
+  #nombre de colonne quantitatives
+  p <- length(dfw[,-id_string])
+
+  #Calcul dispersion
+  dispersion  <- ValP/sum(ValP)*100
+  
+  #Calcul de la corrélation
+  cor <- sqrt(ValP/(1+ValP))
+
+  #Calcul du Wilks
+  Wilks <- (1-cor^2)
+  
+  #Calcul du Khi 2
+  Kh2 <- -(N - (p+k)/2 -1)*log(Wilks)
+  
+  #Calcul de la pvalue
+  pvalue <- (1-pchisq(Kh2, p*2))
+  
+  #Création de la matrice contenant les résultats du test statistique
+  res <- matrix(c(ValP,dispersion ,cor,Wilks,Kh2,pvalue),nbr_axe,6)
+  
+  #Mise en forme des résultats en fonction du nombres d'axes.
+  colnames(res)<- c("valeur propres","% inertie","correlation","Wilks","Kh Deux","p.value")
+  u <- list()
+  for( i in 1:nbr_axe){
+    nomcol <- paste0('u',i)
+    u[i] <- nomcol
+  }
+  rownames(res)<-  u
+  
+  
+  
+  ###Partie 2
+  
+  
+  ##Calcul des coordonnées des individus
+  
+  
+  #Calcul de la matrice des observations centrées. 
+  Zij <- scale(dfw[,-id_string], center = TRUE, scale = FALSE)
+  
+  #permets de récuperer tous les colonnes de la matrice des observations centrées et de mettre en forme le résultats en fonction du      nombre d'axes 
+  Coord_axe <- list()
+  for (i in 1:nbr_axe){
+    nomcol <- paste0('Axe_',i)
+    a <- Zij%*%VecP[,i]
+    Coord_axe[nomcol] <- list(a)
+  }
+  
+  #Création de la variable Score sans la variable factorielle(correponds au coordonnées des individus dans le plan factoriel)
+  Scores_sans_fac <- data.frame(Coord_axe)
+  #Création de la variable Score avec la variable factorielle relative aux classes
+  Scores <- data.frame(Coord_axe,Quality = dfw$Quality)
+  
+  
+  ##Calcul des centres de gravités
+
+  
+  Centre_Gravite_fac <- aggregate(Scores_sans_fac, list(dfw$Quality), mean)
+  
+  
+  ##Calcul des distances entre observations et centres de gravités
+  
+
+  
+  #on enleve la colonne avec la variable factorielle
+  value_CG_fac  <-  as.matrix(Centre_Gravite_fac[which(sapply(Centre_Gravite_fac, is.numeric))])
+  
+  #Creation de la variable qui va contenir les valeurs 
+  dist <- NULL
+  
+  for(i in 1:k){
+    #col_dist represente la soustraction des scores et des centres de gravités 
+    col_dist <- Scores[1:ncol(Scores)-1] - matrix(value_CG_fac[i,],ncol = ncol(value_CG_fac) , nrow = N, byrow = T)
+    #On applique la fonction qui permet de calculer la distance euclidienne et on les combine
+    dist <- cbind(dist,apply(col_dist,1,function(x){return(sqrt(sum(x*x)))}))
+  }
+  dist <- as.data.frame(dist)
+  names(dist) <- Centre_Gravite_fac[,1]
+
+
+  
+  ## Calcul des prédictions d'appartenance et matrice de confusion
+  
+  #retourne vecteur avec l"indice de la colonne avec la distance la plus petite 
+  quality_pred <- factor(apply(dist, 1, which.min))
+  
+  #Tableau de comparaison entre l'appartenance réelle et la prédiction
+  pred_class <- data.frame(TrueValue= dfw$Quality,Prediction=levels(dfw$Quality)[quality_pred])
+  #on mets la colonne en colonne factorielle pour son utilisation dans la matrice de confusion
+  pred_class$Prediction<- as.factor(pred_class$Prediction)
+  
+  #Calcul matrice de confusion
+  Matrice_confusion <- confusionMatrix(pred_class$Prediction, pred_class$TrueValue)
+
+  #Création modèle selon la classification lda
+  model <- lda(Quality ~., data = dfw, CV=T)
+
+  #Matrice confusion de ce model
+  Matrice_confusion_lda <- confusionMatrix(dfw$Quality, model$class)
+  
+  
+  ##Affichage des résultats
+  
+  #Création d'une boucle qui permets d'afficher les graphiques si cela est possible.
+  #Si le nombre d'axe est de 2, alors on pourra afficher un graphique en 2D, sinon on retourne une liste dans le graphique.
+  #Ce n'est pas interessant de faire un graphique en 1D
+  if(nbr_axe != 2){
+    ret   <- list(liste = L
+                  ,Inertie_intra = Inertie_intra, Inertie_inter = Inertie_inter, Inertie_tot = Inertie_tot,rapp = BW
+                  ,VecPropre = VecP ,ValPropre= ValP
+                  ,InfStat = res
+                  ,Score = Scores
+                  ,Centre_Gravite_fac = Centre_Gravite_fac
+                  ,distance = dist
+                  ,prediction = pred_class
+                  ,Matrice_confusion = Matrice_confusion
+                  ,Comparaison_qualité_lda = Matrice_confusion_lda
+    )
+  }else{
+    
+    Scores <- cbind(Scores, good_class = ifelse(pred_class$Prediction ==  pred_class$TrueValue, 'good','bad') )
+    
+    gr_ind <- ggplot() +
+       geom_point(data = Scores, aes(x = Axe_1, y = Axe_2, colour = Quality), size = 2)  +  
+       geom_text (data = Scores, aes(x = Axe_1, y = Axe_2, label = good_class, colour = good_class), hjust = 1, vjust = 0 ) +
+       geom_point(data = Centre_Gravite_fac,  aes(x = Axe_1, y = Axe_2, colour = Group.1, shape =  Group.1), size = 3)+
+      geom_hline(yintercept = 0 , size = 0.1, colour = '#CCCCCC') + geom_vline(xintercept  = 0, size = 0.1,colour = '#CCCCCC') 
+
+
+    ret   <- list(liste = L
+                  ,Iw = Inertie_intra, Ib = Inertie_inter, Itot = Inertie_tot,rapp = BW
+                  ,VecPropre = VecP ,ValPropre= ValP
+                  ,InfStat = res
+                  ,Score = Scores
+                  ,Centre_Gravite_fac = Centre_Gravite_fac
+                  ,distance = dist
+                  ,prediction = pred_class
+                  ,Matrice_confusion = Matrice_confusion
+                  ,Comparaison_qualité_lda = Matrice_confusion_lda
+                  ,graph = gr_ind
+    )
+  } 
+
+  return(ret)
+  
+}
+
+
+````
+
+````{r}
+
+df_exemple<- read.xlsx(xlsxFile="prematures.xlsx")
+df  <- read.table('VIN_QUALITE.txt', header = T)
+
+result <- AFD_class(df_exemple)
+print(result)
+
+````
+* Interprétation : 
+Pour le jeu de donnée premature.xlsx, on remarque que la prévision est meilleure avec la LDA que l'AFD.
+
+
