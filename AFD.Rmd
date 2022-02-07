@@ -414,7 +414,7 @@ confusionMatrix(df$Quality, model$class)
 ````
 * Interprétation : 
 
-En comparant nos deux classification grâce à la fonction confusionMatrix, on peut en conclure que pour noter jeu de donnée VIN_QUALITE, la précision est meilleure avec notre AFD que avec la LDA. 
+En comparant nos deux classification grâce à la fonction confusionMatrix, on peut en conclure que pour notre jeu de donnée VIN_QUALITE, la précision est meilleure avec notre AFD que avec la LDA. 
 
 ## Partie 4: 
 
@@ -423,18 +423,37 @@ Dans cette dernière partie, on va s'interesser à l'encapsulation de tous les c
 Nous allons travailler sur le fichier prematures.xlsx.
 
 La fonction va devoir nous retourner : 
+
 - la Covariance
+
 - la moyenne par colonne
+
 - le nombre d'observation par classe
+
 - les inerties intra, inter et totale.
+
 - le rapport B/W
+
 - les valeurs propres
+
 - les vecteurs propres
+
 - le test statistique 
+
 - les coordonnées des individus dans le plan factoriel (Scores)
+
 - les centres de gravites
+
 - la distance entre les observations et les centres de gravités
+
+- la prediction
+
+- la matrice de confusion
+
+- la comparaison avec la classification LDA
+
 - les graphiques 
+
 ````{r}
 rm(list = ls())
 

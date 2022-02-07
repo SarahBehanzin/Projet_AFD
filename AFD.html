@@ -886,14 +886,31 @@ model</code></pre>
 <ul>
 <li>Interprétation :</li>
 </ul>
-<p>En comparant nos deux classification grâce à la fonction confusionMatrix, on peut en conclure que pour noter jeu de donnée VIN_QUALITE, la précision est meilleure avec notre AFD que avec la LDA.</p>
+<p>En comparant nos deux classification grâce à la fonction confusionMatrix, on peut en conclure que pour notre jeu de donnée VIN_QUALITE, la précision est meilleure avec notre AFD que avec la LDA.</p>
 </div>
 </div>
 <div id="partie-4" class="section level2">
 <h2>Partie 4:</h2>
 <p>Dans cette dernière partie, on va s’interesser à l’encapsulation de tous les calculs que nous avons fait dans une fonction afin de automatiser les calculs.</p>
 <p>Nous allons travailler sur le fichier prematures.xlsx.</p>
-<p>La fonction va devoir nous retourner : - la Covariance - la moyenne par colonne - le nombre d’observation par classe - les inerties intra, inter et totale. - le rapport B/W - les valeurs propres - les vecteurs propres - le test statistique - les coordonnées des individus dans le plan factoriel (Scores) - les centres de gravites - la distance entre les observations et les centres de gravités - les graphiques</p>
+<p>La fonction va devoir nous retourner :</p>
+<ul>
+<li><p>la Covariance</p></li>
+<li><p>la moyenne par colonne</p></li>
+<li><p>le nombre d’observation par classe</p></li>
+<li><p>les inerties intra, inter et totale.</p></li>
+<li><p>le rapport B/W</p></li>
+<li><p>les valeurs propres</p></li>
+<li><p>les vecteurs propres</p></li>
+<li><p>le test statistique</p></li>
+<li><p>les coordonnées des individus dans le plan factoriel (Scores)</p></li>
+<li><p>les centres de gravites</p></li>
+<li><p>la distance entre les observations et les centres de gravités</p></li>
+<li><p>la prediction</p></li>
+<li><p>la matrice de confusion</p></li>
+<li><p>la comparaison avec la classification LDA</p></li>
+<li><p>les graphiques</p></li>
+</ul>
 <pre class="r"><code>rm(list = ls())
 
 AFD_class &lt;- function(dfw)
